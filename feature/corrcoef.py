@@ -7,6 +7,8 @@ rev = pd.read_csv('./data/revenue_distribution_by_sector.csv')
 sustain = pd.read_csv('./data/sustainable_development_goals.csv')
 train = pd.read_csv('./data/train.csv')
 
+# with scope per usd
+
 train = pd.merge(train,
                  rev.drop(['nace_level_1_name',
                            'nace_level_2_code',
@@ -43,7 +45,68 @@ train_coeff = pd.DataFrame(train_coeff, index=train.columns, columns=train.colum
 
 train_coeff.to_csv('./feature/train_coeff.csv')
 
-fig = sns.heatmap(train_coeff, cbar=True, square=True, xticklabels=False, yticklabels=True, annot=False).get_figure()
+vlag_cmap = sns.color_palette("vlag", as_cmap=True)
+
+fig = sns.heatmap(train_coeff,
+                  cbar=False,
+                  square=True,
+                  xticklabels=False,
+                  yticklabels=True,
+                  annot=False,
+                  cmap=vlag_cmap,
+                  center=0).get_figure()
 fig.tight_layout()
 fig.savefig('./feature/heatmap.png')
 fig.show()
+
+# with just scope
+
+train2 = pd.merge(train,
+                  rev.drop(['nace_level_1_name',
+                           'nace_level_2_code',
+                           'nace_level_2_name'], axis=1),
+                           how='inner', on='entity_id')
+
+train2['revenue_pct_new'] = train2.groupby(['entity_id', 'nace_level_1_code'])['revenue_pct'].transform('sum')
+train2 = train2.drop(['revenue_pct'], axis=1).drop_duplicates(keep='first')
+
+train2 = train2[['entity_id',
+               'environmental_score',
+               'social_score',
+               'governance_score',
+               'nace_level_1_code',
+               'revenue_pct_new',
+               'target_scope_1',
+               'target_scope_2']]
+
+train2_pivot = train2.pivot_table(
+    index='entity_id',
+    columns='nace_level_1_code', 
+    values='revenue_pct_new', 
+    aggfunc='first'
+)
+
+train2 = pd.merge(train2, train2_pivot, how = 'inner', on = 'entity_id').drop(['revenue_pct_new', 'entity_id', 'nace_level_1_code'], axis=1).drop_duplicates(keep='first').fillna(value=0)
+
+train2_t = train2.transpose()
+
+# stops working
+
+train2_coeff = np.corrcoef(train2_t)
+train2_coeff = pd.DataFrame(train2_coeff, index=train2.columns, columns=train2.columns)
+
+train2_coeff.to_csv('./feature/train2_coeff.csv')
+
+vlag_cmap = sns.color_palette("vlag", as_cmap=True)
+
+fig2 = sns.heatmap(train2_coeff,
+                  cbar=False,
+                  square=True,
+                  xticklabels=False,
+                  yticklabels=True,
+                  annot=False,
+                  cmap=vlag_cmap,
+                  center=0).get_figure()
+fig2.tight_layout()
+fig2.savefig('./feature/heatmap2.png')
+fig2.show()
